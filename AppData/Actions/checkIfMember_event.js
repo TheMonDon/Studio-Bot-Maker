@@ -6,8 +6,6 @@ module.exports = {
     permission: "Admin",
     memberVariable: "",
     memberChoice: "Command Author",
-    guild: "",
-    guildFrom: "",
   },
 
   UI: {
@@ -15,15 +13,6 @@ module.exports = {
 
     text: "Check Member Permission",
     sepbar: "",
-
-    "btext*": "Get Guild Via",
-    "menuBar*": {
-      choices: ["Guild ID*", "Variable*"],
-      storeAs: "guildFrom",
-      extraField: "guild",
-    },
-    "sepbar*": "",
-
     btext: "Get Member From",
     menuBar: {
       choices: ["Variable*", "Member ID*"],
@@ -85,28 +74,18 @@ module.exports = {
     preview: "permission",
   },
 
-  async run(values, message, uID, fs, client, actionRunner, bridge) {
+  async run(values, message, client, bridge) {
     let varTools = require(`../Toolkit/variableTools.js`);
     let transferVariables = require(`../Toolkit/variableTools.js`).transf;
+    
+    let actionRunner = bridge.runner
 
     const transf = (value) => {
       return transferVariables(value, bridge.variables);
     };
 
-    let guild;
-    if (values.guildFrom == "Variable*") {
-      guild =
-        bridge.variables[
-          varTools.transf(transf(values.guild), transf(bridge.variables))
-        ];
-    }
-    if (values.guildFrom == "Guild ID*") {
-      guild = client.guilds.get(
-        varTools.transf(values.guild, bridge.variables),
-      );
-    }
-
-    var member;
+    let guild = bridge.guild;
+    var member = message.member;
     if (values.memberChoice == "Variable*") {
       member = guild.getMember(
         bridge.variables[transf(values.memberVariable)].id,
@@ -117,7 +96,6 @@ module.exports = {
         varTools.transf(values.memberVariable, bridge.variables),
       );
     }
-
     let hasPermission = false;
 
     switch (values.permission) {

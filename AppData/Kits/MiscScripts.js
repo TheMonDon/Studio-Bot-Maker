@@ -1,3 +1,4 @@
+let areSettingsOpen;
 function array_move(arr, old_index, new_index) {
   if (new_index >= arr.length) {
     var k = new_index - arr.length + 1;
@@ -86,15 +87,13 @@ function showCustomMenu(x, y) {
   menu.style.top = adjustedY + "px";
   menu.style.left = adjustedX + "px";
   menu.style.scale = `${adjustedScale}`;
-  let variableType = 2;
   menu.innerHTML = `
             <div class="sepbars noanims"></div>
             `;
   if (lastHovered) {
     if (lastHovered.id.startsWith("Group")) {
       menu.innerHTML += `
-            <div class="dimension hoverablez" style="width: 95%; padding-top: 4px; padding-bottom: 4px; margin: auto; margin-bottom: 4px; margin-top: 4px; border-radius: 4px;"><div class="barbuttontexta textToLeft" style="margin-left: 1vw;">Edit Data</div></div>
-            <div class="dimension hoverablez" style="width: 95%; padding-top: 4px; padding-bottom: 4px; margin: auto; margin-bottom: 4px; margin-top: 4px; border-radius: 4px;"><div class="barbuttontexta textToLeft" style="margin-left: 1vw;">Edit Actions</div></div>
+            <div class="dimension hoverablez" onclick="editRawData('${lastHovered.id.split('Group')[1]}')" style="width: 95%; padding-top: 4px; padding-bottom: 4px; margin: auto; margin-bottom: 4px; margin-top: 4px; border-radius: 4px;"><div class="barbuttontexta textToLeft" style="margin-left: 1vw;">Edit Data</div></div>
             <div class="dimension hoverablez" style="width: 95%; padding-top: 4px; padding-bottom: 4px; margin: auto; margin-bottom: 4px; margin-top: 4px; border-radius: 4px;"><div class="barbuttontexta textToLeft" style="margin-left: 1vw;">Duplicate</div></div>
             `;
     }
@@ -110,6 +109,82 @@ function showCustomMenu(x, y) {
             `;
     }
   }
+}
+function getCaretPosition(element) {
+  var caretPos = 0;
+  var sel;
+  var range;
+  var clonedRange;
+
+  if (window.getSelection) {
+    sel = window.getSelection();
+    if (sel.rangeCount) {
+      range = sel.getRangeAt(0);
+      clonedRange = range.cloneRange();
+      clonedRange.selectNodeContents(element);
+      clonedRange.setEnd(range.endContainer, range.endOffset);
+      caretPos = clonedRange.toString().length;
+    }
+  } else if (document.selection && document.selection.type !== "Control") {
+    range = document.selection.createRange();
+    clonedRange = range.duplicate();
+    clonedRange.moveToElementText(element);
+    clonedRange.setEndPoint("EndToEnd", range);
+    caretPos = clonedRange.text.length;
+  }
+
+  return caretPos;
+}
+
+function setCaretPosition(element, caretPos) {
+  let range;
+  let offset = caretPos;
+  let found = false;
+
+  if (document.createRange) {
+    range = document.createRange();
+    for (const node of element.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        if (offset <= node.textContent.length) {
+          range.setStart(node, offset);
+          found = true;
+          break;
+        } else {
+          offset -= node.textContent.length;
+        }
+      }
+    }
+
+    if (!found) {
+      range.setStart(element, element.childNodes.length);
+    }
+
+    range.collapse(true);
+
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } else if (document.selection) {
+    range = document.body.createTextRange();
+    range.moveToElementText(element);
+    range.moveStart("character", caretPos);
+    range.collapse(true);
+    range.select();
+  }
+}
+
+function editRawData(group) {
+  menu.remove()
+  document.body.innerHTML += `
+  
+  <div class="flexbox" style="z-index: 1000; margin-left: auto; margin-right: auto; width: 98vw; height: 90vh; backdrop-filter: blur(22px); margin-top: -96vh; border-radius: 12px; background-color: #00000060">
+    <textarea contenteditable="true" id="rawdata" class="noanims" style="font-family: Consolas, 'Courier New', monospace; height: 80vh; margin: auto; margin-top: 1vh; width: 98%;">
+    ${JSON.stringify(botData.commands[group], null, 2)}
+    </textarea>
+    <div class="barbuttonshift" onclick="this.parentElement.remove()"><btext>Exit</btext></div>
+    <div class="barbuttonshift" onclick="botData.commands[${group}] = JSON.parse(document.getElementById('rawdata').value); refreshGroups()"><btext>Upload</btext></div>
+  </div>
+  `
 }
 
 function pasteActionTo(index) {
@@ -166,12 +241,6 @@ function handleKeybind(keyEvent) {
     }
   }
   if (keyEvent.key.toLowerCase() == "s" && keyEvent.ctrlKey == true) {
-    if (
-      document.getElementById("bottombar") == undefined ||
-      document.getElementById("bottombar") == null
-    ) {
-      save_changes(lastAct);
-    } else {
       var saveIcon = document.createElement("div");
       saveIcon.className = "image savenm goofyhovereffect";
       saveIcon.style.backgroundImage = "url(./AppData/save.gif)";
@@ -201,7 +270,6 @@ function handleKeybind(keyEvent) {
         }, 200);
       }, 300);
     }
-  }
 }
 function closeMenu() {
   let bottombar = document.getElementById("bottombar");
@@ -232,10 +300,10 @@ function closeMenu() {
   }, 400);
 }
 
-let aresettingsopen = false;
 
 function initSetup() {
-  aresettingsopen = true;
+  if (areSettingsOpen) return;
+  areSettingsOpen = true;
   let commandDisplay = document.getElementById("animationArea");
   commandDisplay.style.marginLeft = "-200vw";
 
@@ -244,48 +312,72 @@ function initSetup() {
 
   document.body.innerHTML += `
             <div class="settingspane">
-
-            <div class="barbuttonshift" onclick="location.reload()" style="margin-left: 1vw; margin-top: 2vh; width: 10vw;">
+            <div class="flexbox">
+            <div class="barbuttonshift flexbox" onclick="location.reload()" style="margin-left: 1vw; margin-top: 2vh; width: 10vw;">
             <btext>Exit</btext>
             </div>
+            <div class="image" style="background-image: url(./icon.png); height: 5vh; width: 5vh; margin: auto; margin-right: 1vw !important;"></div>
+            <div class="barbuttontext" style="margin: auto; margin-right: 1vw; margin-left: 0px; opacity: 50%;">Studio Bot Maker</div>
+           </div>
 
 
             <div  class="flexbox" style="padding: 12px; margin: auto;">
 
-            <div class="barbuttontext" style="margin-bottom: 2vh; width: 100%;">Settings</div><br>
-            <btext style="width: 100%;">Editor</btext>
-            <div id="actionPreviews"></div>
-            <div id="actionPreviewPosition"></div>
-            <div id="actionPreviewSeparator"></div>
-            <text style="width: 100%; text-align: center;">Action Preview Position can overwrite Action Separator Position</text>
-    
-    
-            <div class="sepbarz"></div>
-            <btext style="width: 100%;">Visuals</btext>
-            <div id="prefferedActionPane"></div>
-            <div id="coloringsmoothness"></div>
-    
-    
-            <div class="sepbarz"></div>
-            <btext style="width: 100%;">Behaviour</btext>
-            <div id="changingWidth"></div>
-            <div id="animationsSpeed"></div>
-
-            <br>
-            <div class="sepbarz"></div>
+            <btext style="width: 100%;">Bot Data</btext>
             <div style="margin-bottom: 0.5vh; background-color: #FFFFFF09; width: 70vw; border-radius: 12px; display: block;">
             <br>
-            <div class="barbuttontext" style="font-size: 20px; width: 95%;">Bot Data</div>
-            <div class="sepbars"></div>
-
             <div class="barbuttontexta textToLeft" style="margin-left: 3vw; margin-top: 1.5vh;">Bot Prefix</div>
             <input class="input" oninput="botData.prefix = this.value; wast()" value="${botData.prefix}">
             <div class="barbuttontexta textToLeft" style="margin-left: 3vw; margin-top: 1.5vh;">Bot Token</div>
             <input class="input" type="password" style="overflow-y: auto; overflow-x: hidden;" oninput="botData.btk = this.value; wast()" value="${botData.btk}">
             <div class="barbuttontexta textToLeft" style="margin-left: 3vw; margin-top: 1.5vh;">Client ID</div>
             <input class="input" type="number" oninput="botData.clientID = this.value; wast()" value="${botData.clientID}">
-    <br>
+            <br>
             </div>
+            <br>
+            <div class="sepbarz"></div>
+
+
+            <btext style="width: 100%;">Editor</btext>
+            <div id="actionPreviews"></div>
+            <div id="actionPreviewPosition"></div>
+            <div id="actionPreviewSeparator"></div>
+            <div id="actionSearch"></div>
+            <text style="width: 100%; text-align: center;">Action Preview Position can overwrite Action Separator Position</text>
+
+            <div class="sepbarz"></div>
+            <btext style="width: 100%;">Visuals</btext>
+            <div id="prefferedActionPane"></div>
+            <div id="anag"></div>
+            <div id="coloringsmoothness"></div>
+            <br>
+            <btext style="width: 100%;">Color</btext>
+            <div class="flexbox" style="width: calc(75% - 24px); padding: 12px; border-radius: 12px; background-color: #FFFFFF10;">
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #000000;"><div class="colorTileText">Lights Off</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #0b0014;"><div class="colorTileText">Ultraviolet</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #170011;"><div class="colorTileText">Soothing Cherry</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #170006;"><div class="colorTileText">Strawberry</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #170000;"><div class="colorTileText">Bloodshot Pink</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #170701;"><div class="colorTileText">Wood</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #170f00;"><div class="colorTileText">Golden Apple</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #241212;"><div class="colorTileText">Anger</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #361d1d;"><div class="colorTileText">Salmon</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #24121d;"><div class="colorTileText">Lilac</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #262626;"><div class="colorTileText">Smoke</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #141414;"><div class="colorTileText">Gray</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #261300;"><div class="colorTileText">Garfield</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #122324;"><div class="colorTileText">Shiny Forest</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #000814;"><div class="colorTileText">Navy Blue</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #071314;"><div class="colorTileText">Forest Green</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #001417;"><div class="colorTileText">Aquamarine</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #000f17;"><div class="colorTileText">Moody Blue</div></div>
+            <div class="colorTile" onmouseenter="setTimeout(() => {this.firstChild.className = 'colorTileText breatheWidth'}, 200)" onmouseleave="this.firstChild.className = 'colorTileText'; this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.classList.remove('breatheWidth'); this.firstChild.style.width = '52.5%'; setTimeout(() => {this.firstChild.style.width = '';}, 150)}, 200);" onclick="setColor(this)" style="background-color: #12241e;"><div class="colorTileText">Mint</div></div>
+            </div>
+            <div class="sepbarz"></div>
+            <btext style="width: 100%;">Behaviour</btext>
+            <div id="changingWidth"></div>
+            <div id="animationsSpeed"></div>
+
             </div>
             </div>
     
@@ -300,7 +392,11 @@ function initSetup() {
     choices: ["Right", "Left", "Both", "None"],
     name: "Action Separator Position",
   });
-
+  createSettingSelector("actionSearch", {
+    stored: "searchStyling",
+    choices: ["Grid", "List"],
+    name: "Action Separator Position",
+  });
   createSettingSelector("prefferedActionPane", {
     stored: "subtitlePosition",
     choices: ["None", "Action Pane", "Group Pane"],

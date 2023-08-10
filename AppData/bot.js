@@ -58,11 +58,6 @@ try {
       `${colors.FgGreen}Studio Bot Maker V3.1.1 Project, started successfully!${colors.Reset}`,
     );
 
-    console.log(
-      `${colors.BgYellow + colors.FgWhite}Purging All Slash Commands${
-        colors.Reset
-      }`,
-    );
     await client.application.bulkEditGlobalCommands([]);
     console.log(
       `${colors.BgGreen + colors.FgBlack}Purged All Slash Commands${
@@ -72,8 +67,28 @@ try {
 
     registerCommands();
   });
+
+  let IO /* In / Out */  = {
+    write: (newIO) => { 
+      try {
+        let dir = data.prjSrc;
+          fs.writeFileSync(`${dir}\\AppData\\storedData.json`, JSON.stringify(newIO))
+      } catch (err) {
+        console.log(`${colors.BgRed}${colors.FgWhite}Something Went Wrong Whilst Trying To Access The Data System, Ensure You've Exported Your Bot!${colors.Reset}`)
+      }
+    },
+    get: (newIO) => { 
+      try {
+        let dir = data.prjSrc;
+        return JSON.parse(fs.readFileSync(`${dir}\\AppData\\storedData.json`, 'utf8'));
+      } catch (err) {
+        console.log(`${colors.BgRed}${colors.FgWhite}Something Went Wrong Whilst Trying To Access The Data System, Ensure You've Exported Your Bot!${colors.Reset}`)
+      }
+    }
+  }
+
   /* Used For Running Action Arrays - Universal Action Array Runner */
-  const runActionArray = async (at, interaction, client, actionBridge, tf) => {
+  const runActionArray = async (at, interaction, client, actionBridge) => {
     new Promise(async (resolve) => {
       let cmdActions;
       let cmdName = "Inbuilt";
@@ -94,7 +109,10 @@ try {
           ranAt: cmdAt,
           nodeName: cmdName,
           allActions: cmdActions,
+          IO: IO
         },
+        runner: runActionArray,
+        fs: fs
       };
       for (let action in cmdActions) {
         if (cmdActions[action] != undefined) {
@@ -105,10 +123,7 @@ try {
             await require(`./AppData/Actions/${cmdActions[action].file}`).run(
               cmdActions[action].data,
               interaction,
-              action,
-              fs,
               client,
-              runActionArray,
               actionContextBridge,
             );
           } catch (err) {
@@ -138,34 +153,28 @@ try {
   };
   client.on("messageCreate", async (msg) => {
     if (msg.author.bot) return;
-    let keepGoing;
     for (let i in data.commands) {
       if (data.commands[i].type == "action") {
         let command = data.commands[i];
         let commandName = data.commands[i].name;
 
         if (command.trigger == "textCommand") {
-          if (
-            `${data.prefix}${commandName}`.toLowerCase() ==
-            msg.content.split(" ")[0].toLowerCase()
-          ) {
-            let matchesPermissions = true;
+          if (`${data.prefix}${commandName}`.toLowerCase() == msg.content.split(" ")[0].toLowerCase()) {
+            let matchesPermissions = true;  
             if (command.boundary) {
               if (command.boundary.worksIn == "guild") {
                 if (!msg.guild) {
                   matchesPermissions = false;
                 }
-                for (let permission in command.boundary.limits) {
-                  if (
-                    !msg.member.permissions.has(
-                      command.boundary.limits[permission],
-                    )
-                  )
-                    matchesPermissions = false;
-                }
               }
               if (command.boundary.worksIn == "dms") {
-                if (msg.guild) matchesPermissions = false;
+                if (msg.guild) {matchesPermissions = false}
+              }
+
+              for (let permission in command.boundary.limits) {
+                if (msg.member.permissions.has(command.boundary.limits[permission]) == false) {
+                  matchesPermissions = false;
+                }
               }
             }
             if (matchesPermissions == true) {
@@ -175,14 +184,8 @@ try {
         } else {
           if (command.trigger == "messageContent") {
             let messageContent = `${msg.content}`;
-            if (
-              messageContent
-                .toLowerCase()
-                .split(" ")
-                .includes(command.name.toLowerCase()) &&
-              `${msg.content}`.toLowerCase().startsWith(data.prefix) == false
-            ) {
-              let matchesPermissions;
+            if (messageContent.toLowerCase().split(" ").includes(command.name.toLowerCase()) &&`${msg.content}`.toLowerCase().startsWith(data.prefix) == false) {
+              let matchesPermissions = true;
               if (command.boundary) {
                 if (command.boundary.worksIn == "guild") {
                   if (!msg.guild) {
@@ -194,16 +197,11 @@ try {
                 }
 
                 for (let permission in command.boundary.limits) {
-                  if (
-                    msg.member.permissions.has(
-                      command.boundary.limits[permission],
-                    )
-                  )
-                    matchesPermissions = false;
+                  if (msg.member.permissions.has(command.boundary.limits[permission]) == false) {matchesPermissions = false;}
                 }
               }
               if (matchesPermissions == true) {
-                runActionArray(i, interaction, client);
+                runActionArray(i, msg, client);
               }
             }
           }
@@ -263,13 +261,13 @@ try {
         }
 
         /* Create & Push The Parameter */
-        let parameter = {
+        let endParameter = {
           name: parameter.name.toLowerCase(),
           type: parameterType,
           required: parameter.required,
           description: parameter.description,
         };
-        commandParameters.push(parameter);
+        commandParameters.push(endParameter);
       }
       /* Moving On To The Command In Itself */
       if (commandParameters != [] && commandParameters[0]) {
@@ -365,29 +363,45 @@ try {
             commandParametersStorage[data.commands[i].parameters[e].storeAs] = option;
           }
         }
-        interaction.author = interaction.user
-        runActionArray(i, interaction, client, commandParametersStorage, true);
+        let command = data.commands[i];
+        let matchesPermissions = true;
+        if (command.boundary) {
+          if (command.boundary.worksIn == "guild") {
+            if (!interaction.guild) {
+              matchesPermissions = false;
+            }
+          }
+          if (command.boundary.worksIn == "dms") {
+            if (interaction.guild) matchesPermissions = false;
+          }
+
+          for (let permission in command.boundary.limits) {
+            if (interaction.member.permissions.has(command.boundary.limits[permission]) == false) {matchesPermissions = false;}
+          }
+        }
+
+        interaction.author = interaction.user;
+        if (matchesPermissions) {
+          runActionArray(i, interaction, client, commandParametersStorage);
+        }
       }
     }
   });
 
   function registerCommands() {
     for (let command of commands) {
-      console.log(
-        `${colors.Blink}(Slash Commands)${colors.Reset} - ${colors.BgYellow}${command.name}${colors.Reset} Is getting registered..`,
-      );
       if (!command.options) {
         client.application.createGlobalCommand({
           type: ApplicationCommandTypes.CHAT_INPUT,
           name: command.name,
-          description: command.description,
+          description: command.description || 'No Description',
           dmPermission: false,
         });
       } else {
         client.application.createGlobalCommand({
           type: ApplicationCommandTypes.CHAT_INPUT,
           name: command.name,
-          description: command.description,
+          description: command.description || 'No Description',
           options: command.options,
           dmPermission: false,
         });

@@ -7,7 +7,7 @@ module.exports = {
     roleFrom: "Role ID*",
   },
   UI: {
-    compatibleWith: ["Text", "Slash"],
+    compatibleWith: ["Any"],
     text: "Get Role Info",
 
     sepbar: "",
@@ -45,7 +45,7 @@ module.exports = {
     previewName: "Get",
     preview: "get",
   },
-  run(values, message, uID, fs, client, runner, bridge) {
+  run(values, message, client, bridge) {
     let varTools = require(`../Toolkit/variableTools.js`);
     let guild = bridge.guild;
 

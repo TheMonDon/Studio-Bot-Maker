@@ -4,11 +4,11 @@ module.exports = {
     storeMessageAuthorAs: "",
     storeMessageAs: "",
     actions: {},
-    channelFrom: "Command Channel",
+    channel: "Command Channel",
     fromWho: "",
     targetUser: "Anybody",
     stopAwaitingAfter: "60",
-    channel: "",
+    channelField: "",
   },
 
   UI: {
@@ -18,10 +18,10 @@ module.exports = {
     sepbar: "",
 
     btext: "Get Channel To Await Message From Via:",
-    menuBar: {
-      choices: ["Command Channel", "ID*", "Variable*"],
-      storeAs: "channelFrom",
-      extraField: "channel",
+    menuBar_: {
+      choices: ["Command Channel", "Variable*", "ID*"],
+      storeAs: "channel",
+      extraField: "channelField",
     },
 
     sepbar0: "",
@@ -35,7 +35,7 @@ module.exports = {
 
     sepbar1: "",
 
-    btext1: "Once Reacted, Run",
+    btext1: "Once Sent, Run",
 
     actions: "actions",
     sepbar2: "",
@@ -55,42 +55,45 @@ module.exports = {
     previewName: "Await From",
 
     variableSettings: {
-      fromWho: {
+      'fromWho': {
         "User*": "direct",
-        Anybody: "novars",
+        "Anybody": "novars",
         "Command Author": "novars",
       },
-      emoji: {
-        "Custom*": "indirect",
-      },
-      message: {
-        "Variable*": "direct",
-      },
-    },
+      'channelField': {
+        "Variable*": "direct"
+      }
+    }
   },
 
-  async run(values, inter, uID, fs, client, actionRunner, bridge) {
+  async run(values, inter, client, bridge) {
     const varTools = require(`../Toolkit/variableTools.js`);
+    
+    let actionRunner = bridge.runner;
 
-    const handlemessage = (message) => {
+    let message;
+
+    const handlemessage = (msg) => {
+      message = msg
       let matchesTarget = false;
       let matchesChannel = false;
 
-      switch (values.channelFrom) {
+      switch (values.channel) {
         case "Command Channel":
-          matchesTarget = inter.channel.id == message.channel.id;
+          matchesChannel = `${inter.channelID}` == `${message.channelID}`;
           break;
         case "ID*":
-          matchesTarget =
-            varTools.transf(values.channel, bridge.variables) ==
+          matchesChannel =
+            varTools.transf(values.channelField, bridge.variables) ==
             message.channel.id;
           break;
         case "Variable*":
-          matchesTarget =
-            bridge.variables[varTools.transf(values.channel, bridge.variables)]
+          matchesChannel =
+            bridge.variables[varTools.transf(values.channelField, bridge.variables)]
               .id == message.channel.id;
           break;
       }
+
 
       switch (values.targetUser) {
         case "Anybody":
@@ -111,7 +114,6 @@ module.exports = {
             varTools.transf(values.fromWho, bridge.variables);
           break;
       }
-
       if (matchesTarget && matchesChannel) {
         actionRunner(
           values.actions,
@@ -130,13 +132,13 @@ module.exports = {
 
     client.on(
       "messageCreate",
-      handlemessage(message, message.author, reaction),
+      handlemessage,
     );
 
     if (values.stopAwaitingAfter != "") {
       setTimeout(
         () => {
-          client.off("messageCreate", handlemessage(message));
+          client.off("messageCreate", handlemessage);
         },
         parseFloat(values.stopAwaitingAfter) * 1000,
       );

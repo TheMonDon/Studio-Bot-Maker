@@ -11,7 +11,7 @@
         <div class="image checkmark" style="width: 30% !important; height: 30px !important; margin: auto !important;"></div>
         <div style="margin: auto;">
             <div class="barbuttontexta">Done</div>
-            <div class="smalltext" style="opacity: 50%; font-size: 8px;">CTRL+TAB</div>
+            <div class="smalltext" style="opacity: 50%; font-size: 8px;">CTRL+Q</div>
             </div>
         </div>
     </div>
@@ -37,7 +37,6 @@
             closeWindow()
         }
         if (event.key.toLowerCase() == 'q' && event.ctrlKey == true) {
-            save()
             closeWindow()
         }
         if (event.key.toLowerCase() == 'v' && event.ctrlKey == true) {
@@ -146,7 +145,11 @@
                     if (i.split(' ').includes('custom')) {
                         action.data[element] = document.getElementById(element).value;
                     } else {
-                        action.data[element] = document.getElementById(element).innerText;
+                        if (i.startsWith('largeInput')) {
+                            action.data[element] = document.getElementById(element).value;
+                        } else {
+                            action.data[element] = document.getElementById(element).innerText;
+                        }
                     }
                 } catch(err) {}
             }

@@ -3,6 +3,35 @@ const { app, ipcRenderer } = require("electron");
 let selectedGroupType = "text";
 let copiedAction;
 
+const { Worker } = require('worker_threads');
+
+function runInWorker(method) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(`
+      const { parentPort } = require('worker_threads');
+      parentPort.on('message', (method) => {
+        try {
+          method();
+          parentPort.postMessage('Code execution completed.');
+        } catch (error) {
+          parentPort.postMessage({ error: error.message });
+        }
+      });
+    `);
+
+    worker.on('message', (message) => {
+      if (typeof message === 'string') {
+        resolve(message);
+      } else {
+        reject(new Error(message.error));
+      }
+      worker.terminate();
+    });
+
+    worker.postMessage(method.toString());
+  });
+}
+
 function editAction() {
   let variables = [];
   let actionType = "text";
@@ -10,7 +39,7 @@ function editAction() {
     actionType = "event";
     try {
       if (
-        require("./AppData/Events/" + botData.commands[lastObj].eventFile)
+        require(processPath +"/AppData/Events/" + botData.commands[lastObj].eventFile)
           .inputSchemes == 2
       ) {
         variables.push(botData.commands[lastObj].eventData[0]);
@@ -35,7 +64,7 @@ function editAction() {
   for (let action in botData.commands[lastObj].actions) {
     try {
       let actionUI =
-        require(`./AppData/Actions/${botData.commands[lastObj].actions[action].file}`).UI;
+        require(`${processPath}/AppData/Actions/${botData.commands[lastObj].actions[action].file}`).UI;
       for (let UIelement in actionUI) {
         if (UIelement.startsWith("input")) {
           if (UIelement.endsWith(`!*`) || UIelement.endsWith("!")) {
@@ -162,7 +191,7 @@ function refreshActions() {
     }
     let actionFile;
     try {
-      actionFile = require(`./AppData/Actions/${botData.commands[lastObj].actions[action].file}`);
+      actionFile = require(`${processPath}/AppData/Actions/${botData.commands[lastObj].actions[action].file}`);
       let previewName = "";
       if (!actionFile.subtitle) {
         previewName = actionFile.UI.previewName ? actionFile.UI.previewName + ":" : '';
@@ -261,6 +290,9 @@ function refreshActions() {
       if (editorSettings.separatorPosition == "none") {
         leftSeparatorDisplay = "none";
         rightSeparatorDisplay = "none";
+        if (editorSettings.subtitlePosition == 'center') {
+          subtitlePosition = "margin-right: auto; margin-left: auto;"
+        }
       }
       
       endHTML += `
@@ -461,7 +493,7 @@ function prioritizeEvents() {
   groupEvents.style.opacity = "";
   try {
     groupEvents.innerHTML = `<div style="margin: auto; margin-left: 1vw;">Triggered By: ${
-      require("./AppData/Events/" + botData.commands[lastObj].eventFile).name
+      require(processPath + "/AppData/Events/" + botData.commands[lastObj].eventFile).name
     }</div><div class="image openExternally"></div>`;
   } catch (err) {
     groupEvents.innerHTML = `<div style="margin: auto; margin-left: 1vw;">Triggered By: Nothing</div><div class="image openExternally"></div>`;
@@ -475,6 +507,29 @@ function returnToNormal() {
 function highlight(element) {
   try {
     if (element.id.startsWith("Group") == true) {
+      let groupContainer = document.getElementById('groupActionsContainer')
+      let _groupType = botData.commands[element.id.split("Group")[1]].type;
+      let groupTrigger = botData.commands[element.id.split("Group")[1]].trigger;
+      let endType;
+      if (_groupType == "action") {
+        if (groupTrigger == "textCommand" || groupTrigger == "messageContent") {
+          endType = "text";
+        }
+        if (groupTrigger == "slashCommand") {
+          endType = "slash";
+        }
+      } else {
+        endType = "event";
+      }
+      if (!botData.commands[element.id.split("Group")[1]] || endType != selectedGroupType) {
+        console.log(selectedGroupType, endType)
+        document.getElementById('Command_Name').contentEditable = "false"
+        groupContainer.style.height = '0px'
+        groupContainer.style.overflow = 'auto'
+      } else {
+        document.getElementById('Command_Name').contentEditable = "true"
+        groupContainer.style.height = '33px'
+      }
       try {
         if (botData.commands[lastObj].color != undefined) {
           document.getElementById(`Group${lastObj}`).style.backgroundColor =
@@ -586,7 +641,7 @@ function highlight(element) {
       element.style.backgroundColor = "#FFFFFF25";
       lastAct = element.id.split("Action")[1];
     }
-  } catch (err) {}
+  } catch (err) {console.log(err)}
 }
 
 function openBar(iftr) {
@@ -614,71 +669,6 @@ function openBar(iftr) {
     bottombar.style.animationName = "";
     bottombar.style.animationDuration = "";
   }, 500);
-}
-
-function modifyBar() {
-  let bottombar = document.getElementById("bottombar");
-  bottombar.style.animationDuration = "";
-  bottombar.style.animationName = "";
-  bottombar.style.animationDuration = "0.5s";
-  bottombar.style.animationName = "expandFrom";
-  bottombar.style.height = "30%";
-  bottombar.style.width = "40%";
-  bottombar.style.backdropFilter = "blur(22px)";
-  bottombar.style.border = "#00000030 solid 2px";
-  bottombar.style.marginTop = "-90vh";
-  bottombar.style.zIndex = "50";
-  bottombar.style.marginLeft = "30%";
-  bottombar.style.borderRadius = "22px";
-  bottombar.style.backgroundColor = "#3d3d3d40";
-  bottombar.style.boxShadow = "#00000050 0px 0px 12px";
-  bottombar.onclick = () => {
-    unmodify();
-  };
-  setTimeout(() => {
-    bottombar.innerHTML += `
-        <div class="flexbox" style="height: 100%; justify-content: center; align-items: center; margin-top: -24px;">
-        <div class="flexbox" style="width: 98%; margin-left: auto; margin-top: auto; margin-right: auto; height: 20%; justify-content: center; margin-bottom: 2vh;">
-        <div class="barbutton borderrightbottom" onclick="savePrj()"><div class="barbuttontexta">Save</div></div>
-        <div class="barbutton bordercenter" onclick="modcolor(this)"><div class="barbuttontexta">Color</div></div>
-        <div class="barbutton borderleftbottom" onclick="sltPrj()"><div class="barbuttontexta">Select Project</div></div>
-        </div>
-        <div class="flexbox" style="width: 98%; margin-bottom: auto; margin-left: auto; margin-right: auto; height: 20%; justify-content: center; animation-duration: 0.8s;">
-        <div class="barbutton borderrighttop" style="animation-duration: 0.6s" onclick="toggleBot()"><div class="barbuttontexta">Toggle Bot</div></div>
-        <div class="barbutton bordercenter" onclick="exportProject()" style="animation-duration: 0.6s"><div class="barbuttontexta">Export Project</div></div>
-        <div class="barbutton borderlefttop" onclick="settoken(this)" style="animation-duration: 0.6s"><div class="barbuttontexta">Bot Data</div></div>
-            </div>
-        </div>`;
-    bottombar.style.animationName = "";
-    bottombar.style.animationDuration = "";
-  }, 500);
-}
-function unmodify() {
-  let bottombar = document.getElementById("bottombar");
-  bottombar.style.animationDuration = "0.4s";
-  bottombar.style.animationName = "fromExpand";
-  bottombar.style.height = "";
-  bottombar.style.width = "";
-  bottombar.style.backdropFilter = "";
-  bottombar.style.marginTop = "";
-  bottombar.style.border = "";
-  bottombar.style.marginLeft = "";
-  bottombar.style.borderRadius = "";
-  bottombar.style.backgroundColor = "";
-  bottombar.style.padding = "";
-  bottombar.style.paddingTop = "";
-  bottombar.style.paddingBottom = "";
-  bottombar.style.overflowY = "";
-  bottombar.style.overflow = "none";
-  bottombar.style.textOverflow = "none";
-  bottombar.onclick = () => {
-    modifyBar();
-  };
-  setTimeout(() => {
-    bottombar.innerHTML = "•••";
-    bottombar.style.animationName = "";
-    bottombar.style.animationDuration = "";
-  }, 400);
 }
 
 function sltTxt() {
@@ -716,27 +706,7 @@ function modcolor() {
     sidebar.style.width = "40vw";
     sidebar.innerHTML = `
             <br>
-            <div class="sidebartext" style="font-size: 20px;">Editor Theme & Colors</div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #000000;"><div class="colorTileText">Lights Off</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #0b0014;"><div class="colorTileText">Ultraviolet</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #170011;"><div class="colorTileText">Soothing Cherry</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #170006;"><div class="colorTileText">Strawberry</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #170000;"><div class="colorTileText">Bloodshot Pink</div></div>
 
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #170701;"><div class="colorTileText">Wood</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #361d1d;"><div class="colorTileText">Salmon</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #170f00;"><div class="colorTileText">Golden Apple</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #262626;"><div class="colorTileText">Smoke</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #24121d;"><div class="colorTileText">Lilac</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #122324;"><div class="colorTileText">Shiny Forest</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #000814;"><div class="colorTileText">Navy Blue</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #071314;"><div class="colorTileText">Forest Green</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #001417;"><div class="colorTileText">Aquamarine</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #000f17;"><div class="colorTileText">Moody Blue</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #141414;"><div class="colorTileText">Gray</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #12241e;"><div class="colorTileText">Mint</div></div>
-            <div class="colorTile" onclick="setColor(this)" style="background-color: #241212;"><div class="colorTileText">Anger</div></div>
-            </div>
             `;
     sidebar.onmouseleave = () => {
       sidebar.style.width = "0vw";
@@ -749,46 +719,7 @@ function modcolor() {
     };
   }, 300);
 }
-function settoken() {
-  let sidebar = document.getElementById("sidebar");
-  sidebar.style.width = "0vw";
-  setTimeout(() => {
-    sidebar.style.width = "40vw";
-    sidebar.innerHTML = `
-            <br>
-            <div class="sidebartext" style="font-size: 20px;">Bot Data</div>
-            <div class="sepbars"></div>
-            <div class="flexbox" style="height: 30vh;">
 
-            <div class="barbuttontexta">Bot Prefix</div>
-            <br>
-            <input class="input" oninput="botData.prefix = this.value; wast()" value="${botData.prefix}">
-            <br>
-            <br>
-
-            <div class="barbuttontexta">Bot Token</div>
-            <br>
-            <input class="input" type="password" style="overflow-y: auto; overflow-x: hidden;" oninput="botData.btk = this.value; wast()" value="${botData.btk}">
-            <br>
-            <br>
-
-            <div class="barbuttontexta">Client ID</div>
-            <br>
-            <input class="input" type="number" oninput="botData.clientID = this.value; wast()" value="${botData.clientID}">
-            <div class="barbuttontexta" style="margin-bottom: 2vh !important; margin-top: 67vh !important;">Stop Hovering The Sidebar To Close This</div>
-
-            </div>
-            `;
-    sidebar.onmouseleave = () => {
-      sidebar.style.width = "0vw";
-      setTimeout(() => {
-        sidebar.style.width = "";
-        sidebar.innerHTML = sidebarcontent;
-        sidebar.onmouseleave = () => {};
-      }, 300);
-    };
-  }, 300);
-}
 function brd() {
   let bottombar = document.getElementById("bottombar");
 
@@ -942,242 +873,7 @@ function sltPrj() {
   document.body.innerHTML +=
     '<div class="barbuttontexta" id="opentext" style="margin-top: -10vh; position: relative; z-index: 50; text-align: center;">The editor will reload after you select your project</div>';
 }
-let exportFolder;
-function exportProject() {
-  let commandDisplay = document.getElementById("animationArea");
-  commandDisplay.style.animationName = "moveToTheRight";
-  commandDisplay.style.animationDuration = "0.35s";
-  commandDisplay.style.marginLeft = "100vw";
-  commandDisplay.style.marginRight = "-100vw";
 
-  let editorOptions = document.getElementById("edutor");
-  editorOptions.style.animationName = "moveToTheLeft";
-  editorOptions.style.animationDuration = "0.35s";
-  editorOptions.style.marginRight = "100vw";
-  editorOptions.style.marginLeft = "-100vw";
-  document.body.innerHTML += `
-            <div class="actbar" style="margin-top: -95vh; padding: 0px; margin-left: auto; margin-right: auto; position: relative; background: linear-gradient(45deg, #FFFFFF15 0%, #FFFFFF01 150%); box-shadow: #00000035 0px 0px 12px;">
-            <div class="barbuttone" style="margin-left: 1vw; margin-top: 1vw; width: 7vw;" onclick="unexportBot(this)"><div class="barbuttontexta">Cancel</div></div>
-
-            <div class="barbuttontext" style="margin-top: 3vh; text-align: center;">Export Project</div>
-            <div class="sepbars"></div>
-
-            <br>
-            <div class="flexbox" style="height: 8%;">
-            <div class="barbuttontexta">Project Name</div>
-            <div class="input" id="projectName" style="width: 85%;" contenteditable="true">${botData.name}</div>
-            <div class="sepbars"></div>
-            <div class="barbuttontexta">Export Folder</div>
-            <div class="action" style="height: auto; width: 85%;" id="pathTo" onclick="selectFolder(this)">None Selected</div>
-            <div class="sepbars"></div>
-            <div class="barbutton" style="margin: auto;" onclick="exportBot(this)"><div class="barbuttontexta">Export</div></div>
-            <br>
-            <br>
-            <br>
-            <div style="width: 100%; margin-top: 4vh; align-items: center; justify-content: center; opacity: 95%;" class="flexbox">
-            <a onclick="require('electron').shell.openExternal('https://l.linklyhq.com/l/1nohw')" style="background-color: #FFFFFF40; border-radius: 24px; margin: auto;"><img style="opacity: 80%; margin: auto; height: calc(187.25px + 2vh); cursor: pointer; width: calc(358.75px + 2vh); background-size: contain; background-clip: content-box; background-position: center; background-repeat: none;" src="https://github-production-user-asset-6210df.s3.amazonaws.com/100881234/242099266-b6439c2d-958b-47bf-b10d-13e78d9fe5cd.png"></a>
-            </div>
-            </div>
-
-            `;
-  delete commandDisplay;
-  delete editorOptions;
-}
-function unexportBot(elm) {
-  elm.parentElement.remove();
-  let commandDisplay = document.getElementById("animationArea");
-  commandDisplay.style.animationName = "comeToTheRight1";
-  commandDisplay.style.animationDuration = "0.35s";
-  commandDisplay.style.marginLeft = "";
-  commandDisplay.style.marginRight = "";
-
-  let editorOptions = document.getElementById("edutor");
-  editorOptions.style.animationName = "comeToTheLeft1";
-  editorOptions.style.animationDuration = "0.35s";
-  editorOptions.style.marginRight = "";
-  editorOptions.style.marginLeft = "";
-  setTimeout(() => {
-    editorOptions.style.animationName = "";
-    editorOptions.style.animationDuration = "";
-    commandDisplay.style.animationName = "";
-    commandDisplay.style.animationDuration = "";
-    delete commandDisplay;
-    delete editorOptions;
-  }, 350);
-}
-function selectFolder(elm) {
-  const ipcRenderer = require("electron").ipcRenderer;
-
-  ipcRenderer.send("selectDirectory");
-
-  ipcRenderer.on("selectedDirectory", function (event, dir) {
-    if (!dir || dir == null || dir == undefined) {
-      elm.innerHTML = "Selection Cancelled. No Folder selected";
-    } else {
-      elm.innerHTML = `${dir[0]}`;
-      exportFolder = dir[0];
-    }
-  });
-}
-async function exportBot(elm) {
-  elm.style.animationName = "";
-  elm.style.animationDuration = "0s";
-  if (exportFolder) {
-    let globalSettings = JSON.parse(
-      fs.readFileSync("C:/ProgramData/settings.json"),
-    );
-    globalSettings.projects.push(exportFolder);
-    fs.writeFileSync(
-      "C:/ProgramData/settings.json",
-      JSON.stringify(globalSettings, null, 2),
-    );
-    botData.name = document.getElementById("projectName").innerText;
-    botData.prjSrc = exportFolder;
-    fs.writeFileSync(
-      processPath + "\\AppData\\data.json",
-      JSON.stringify(botData, null, 2),
-    );
-
-    elm.parentNode.parentNode.innerHTML = `
-                <div class="barbuttontexta" style="margin: auto; margin-top: 25%; text-align: center;" id="exprjt">Exporting Project!</div>
-                `;
-
-    fs.writeFileSync(
-      exportFolder + "\\bot.js",
-      fs.readFileSync(processPath + "\\AppData\\bot.js"),
-    );
-    try {
-      fs.mkdirSync(exportFolder + "\\AppData");
-    } catch (err) {
-      null;
-    }
-    fs.writeFileSync(
-      exportFolder + "\\AppData\\data.json",
-      JSON.stringify(botData),
-    );
-
-    fs.writeFileSync(
-      exportFolder + "\\package.json",
-      `
-                {
-                    "name": "Studio-Bot-Maker",
-                    "main": "bot.js",
-                    "author": "Studio Bot Maker, Rat#1111",
-                    "description": "A discord bot created via Studio Bot Maker!",
-                    "dependencies": {
-                        "discord-api-types": "^0.37.34",
-                        "@oceanicjs/builders": "^1.1.9",
-                        "oceanic.js": "^1.7.1",
-                        "fs": "^0.0.1-security",
-                        "fs-extra": "^11.1.1",
-                        "fse": "^4.0.1",
-                        "oceanic-collectors": "^1.0.7",
-                        "node-fetch": "^3.3.1",
-                        "request": "^2.88.2"
-                    },
-                    "version": "69420"
-                }
-                `,
-    );
-    try {
-      fs.mkdirSync(exportFolder + "\\AppData\\Actions");
-    } catch (err) {
-      null;
-    }
-    try {
-      fs.mkdirSync(exportFolder + "\\AppData\\Toolkit");
-    } catch (err) {
-      null;
-    }
-
-    try {
-      fs.mkdirSync(exportFolder + "\\AppData\\Events");
-    } catch (err) {
-      null;
-    }
-    let events = fs.readdirSync(processPath + "\\AppData\\Events");
-
-    for (let event in events) {
-      setTimeout(() => {
-        fs.writeFileSync(
-          exportFolder + "\\AppData\\Events\\" + events[event],
-          fs.readFileSync(processPath + "\\AppData\\Events\\" + events[event]),
-        );
-      }, 1400);
-    }
-    fs.writeFileSync(
-      exportFolder + "\\AppData\\Toolkit\\variableTools.js",
-      fs.readFileSync(processPath + "\\AppData\\Toolkit\\variableTools.js"),
-    );
-    fs.writeFileSync(
-      exportFolder + "\\AppData\\Toolkit\\interactionTools.js",
-      fs.readFileSync(processPath + "\\AppData\\Toolkit\\interactionTools.js"),
-    );
-    try {
-      fs.readFileSync(exportFolder + `\\AppData\\Toolkit\\storedData.json`);
-    } catch (err) {
-      fs.writeFileSync(
-        exportFolder + `\\AppData\\Toolkit\\storedData.json`,
-        `
-                        {
-                            "users": {},
-                            "guilds": {},
-                            "members" : {},
-                            "channels": {},
-                            "lists": {}
-                        }`,
-      );
-    }
-    try {
-      fs.mkdirSync(exportFolder + "\\AppData\\Project");
-    } catch (err) {
-      null;
-    }
-    fs.writeFileSync(
-      exportFolder + "\\AppData\\Project\\data.json",
-      fs.readFileSync(processPath + "\\AppData\\Project\\data.json"),
-    );
-    let actions = fs.readdirSync(processPath + "\\AppData\\Actions");
-    document.getElementById("exprjt").innerHTML =
-      '<div class="ring"></div> <br> Exporting Project!';
-    let acrnum = 0;
-
-    for (let action in actions) {
-      fs.writeFileSync(
-        exportFolder + "\\AppData\\Actions\\" + actions[action],
-        fs.readFileSync(processPath + "\\AppData\\Actions\\" + actions[action]),
-      );
-    }
-
-    document.getElementById("exprjt").innerHTML =
-      '<div class="ring"></div> <br> Project Exported! <br>' +
-      actions.length +
-      ' Actions Exported To  <span style="opacity:50%"> ' +
-      botData.name +
-      "</span><br>" +
-      `
-                    <div class="sepbar"></div>
-                    <div class="barbuttontexta">Project Summary</div>
-                    <br>
-                    <span style="opacity:50%">${
-                      Object.keys(botData.commands).length
-                    }</span> Action Groups In Total
-                    <div></div>
-                    <br>
-                    `;
-    setTimeout(() => {
-      location.reload();
-    }, 14000);
-  } else {
-    elm.style.animationName = "glowTwice";
-    elm.style.animationDuration = "1s";
-
-    setTimeout(() => {
-      elm.style.animationName = "";
-      elm.style.animationDuration = "";
-    }, 1000);
-  }
-}
 
 function savePrj() {
   if (botData.prjSrc != "") {
@@ -1197,583 +893,17 @@ function savePrj() {
   }
 }
 setInterval(() => {
-  let elm = document.createElement("div");
-  elm.className = "issue";
-  elm.id = "saveProjectnotif";
-  elm.style.backdropFilter = "blur(10px)";
-  elm.style.zIndex = "10";
-  elm.style.width = "23vw";
-  elm.style.marginRight = "3vw";
-  elm.style.position = "relative";
-  elm.style.marginTop = "-90vh";
-  elm.style.animationName = "fadeoutspfload";
-  elm.style.animationDuration = "3.1s";
-  elm.style.height = "5.5vh";
-  elm.style.padding = "1vh";
-  elm.innerHTML = `
-            <div class="flexbox" style="margin: auto;">
-            <div class="ring" style="animation-duration: 1s; width: 3.5vw; height: 3.5vw; margin: auto;"></div>
-            <div class="barbuttontexta">Saving your project..</div>
-            </div>
-            `;
-
-  document.body.appendChild(elm);
 
   try {
     setTimeout(() => {
       elm.remove();
     }, 3000);
     savePrj();
-  } catch (err) {
-    console.log(err);
-    elm.innerHTML = `
-            <div class="flexbox" style="margin: auto; align-items: center; justify-content: center; height: auto; padding: 6px;">
-            <div class="barbuttontexta">No project output</div>
-            <div class="barbuttonshift" onclick="exportProject(); this.parentElement.parentElement.remove()" style="margin: auto;">
-            <div class="barbuttontexta">Fix</div>
-            </div>
-            </div>
-            `;
-    setTimeout(() => {
-      elm.remove();
-    }, 10000);
-  }
+  } catch (err) {}
 }, 95000);
 
 function closeCommand() {
   return;
-}
-function modifyActElm() {
-  openBar(true);
-
-  setTimeout(() => {
-    let bottombar = document.getElementById("bottombar");
-    bottombar.style.animationDuration = "";
-    bottombar.style.animationName = "";
-    bottombar.style.animationDuration = "0.3s";
-    bottombar.style.animationName = "expnd";
-    bottombar.style.height = "100vh";
-    bottombar.style.width = "100vw";
-    bottombar.style.backdropFilter = "blur(22px)";
-    bottombar.style.border = "#00000030 solid 2px";
-    bottombar.style.marginTop = "-97.5vh";
-    bottombar.style.borderRadius = "0px";
-    bottombar.style.overflow = "auto";
-    bottombar.style.zIndex = "50";
-    bottombar.style.marginLeft = "-1.8vw";
-    bottombar.style.backgroundColor = "#3d3d3d40";
-    bottombar.style.boxShadow = "#00000050 0px 0px 12px";
-    setTimeout(() => {
-      showHome();
-      setTimeout(() => {
-        bottombar.onclick = () => null;
-      }, 100);
-    }, 300);
-  }, 500);
-}
-const axios = require("axios");
-function showHome() {
-  let bottombar = document.getElementById("bottombar");
-
-  bottombar.innerHTML = `
-            <div class="flexbox" id="toolbar" style="animation-name: appearfadenmt; animation-duration: 0.6s; margin: auto; align-items: center; justify-content: center;">
-            <div class="flexbox" style="background-color: #00000060; width: 95%; padding: 9px; margin-left: auto; margin-right: auto; border-radius: 12px; margin-top: 2vh;">
-            
-            <div class="barbutton" onclick="showButtons()" style="margin-top: auto; margin-bottom: auto;"><div class="barbuttontexta">Buttons</div></div>
-            <div class="barbutton" onclick="showActionRows()" style="margin-top: auto; margin-bottom: auto;"><div class="barbuttontexta">Select Menus (BETA)</div></div>
-            <div class="barbutton" style="margin-top: auto; margin-bottom: auto;"><div class="barbuttontexta">Errors (Unavailable)</div></div>
-
-            </div>
-            <div class="sepbar"></div>
-
-            <div id="actElmsig" style="width: 95%; padding: 9px; margin-left: auto; margin-right: auto; height: 100%; border-radius: 12px; margin-top: 2vh;">
-            <div class="barbuttontext texttoleft" style="margin-left: 5vw;">Home</div>
-            <br>
-            <div class="flexbox">
-            <div style="background-color: #00000060; width: 45vw; margin-right: 2vw; height: 35vh; border-radius: 12px; padding: 10px;">
-            <div class="barbuttontexta texttoleft" style="margin-left: 1vw;">Project Overview</div>
-            <div class="sepbars"></div>
-            <div class="barbuttontexta texttoleft">Name</div>
-
-            <div class="input" contenteditable="true" onkeyup="setProjectName(this)">${botData.name}</div>
-            <div class="sepbars"></div>
-            <div class="barbuttontexta texttoleft">Data</div>
-            
-            <div class="flexbox" style="align-items: center; justify-content: center;">
-            <div class="barbuttone hoverable borderrightz" onclick="closeMenu(); setTimeout(() => {settoken()}, 100)">
-            <div class="barbuttontexta">Bot Credentials</div>
-            </div>
-            <div class="barbuttone hoverable bordercenter" style="margin: 0px; border-radius: 2px !important;" onclick="showHosting()"> 
-            <div class="barbuttontexta">Phantom Hosting</div>
-            </div>
-            <div class="barbuttone hoverable borderleftz" onclick="location.reload()">
-            <div class="barbuttontexta">Restart</div>
-            </div>
-            </div></div>
-            <div style="background-color: #00000060; width: 40vw; height: 35vh; border-radius: 12px; padding: 12px;" class="flexbox">
-            <div class="barbuttontexta">
-            <b>READ ME!</b>
-            You're currently rocking Studio Bot Maker version V3.0.1 - Public Beta
-            </div>
-            <div class="barbuttontexta">
-            <b>🏳️‍🌈 Happy Pride Month!</b>
-            Documentation & Hosting reccomendations on Github/RatWasHere/Studio-Bot-Maker/docs
-            - Lots of bugs were fixed, but some might still emerge. Please report them in the support guild! Fully stable version coming Soon™️
-            </div>
-            </div>
-            </div>
-
-            </div>
-            </div>
-            `;
-}
-function switchToHome() {
-  let view = document.getElementById("actElmsig");
-  view.innerHTML = `
-            <div class="barbuttontext texttoleft" style="margin-left: 5vw;">Home</div>
-            <br>
-            <div class="flexbox">
-            <div style="background-color: #00000060; width: 45vw; margin-right: 2vw; height: 35vh; border-radius: 12px; padding: 10px;">
-            <div class="barbuttontexta texttoleft" style="margin-left: 1vw;">Project Overview</div>
-            <div class="sepbars"></div>
-            <div class="barbuttontexta texttoleft">Name</div>
-
-            <div class="input" contenteditable="true" onkeyup="setProjectName(this)">${botData.name}</div>
-            <div class="sepbars"></div>
-            <div class="barbuttontexta texttoleft">Data</div>
-            
-            <div class="flexbox" style="align-items: center; justify-content: center;">
-            <div class="barbuttone hoverable borderrightz" onclick="closeMenu(); setTimeout(() => {settoken()}, 100)">
-            <div class="barbuttontexta">Bot Credentials</div>
-            </div>
-            <div class="barbuttone hoverable bordercenter" style="margin: 0px; border-radius: 2px !important;" onclick="showHosting()"> 
-            <div class="barbuttontexta">Phantom Hosting</div>
-            </div>
-            <div class="barbuttone hoverable borderleftz" onclick="viewJSON()">
-            <div class="barbuttontexta">View JSON</div>
-            </div>
-            </div></div>
-            <div style="background-color: #00000060; width: 40vw; height: 35vh; border-radius: 12px; padding: 12px;" class="flexbox">
-            <div class="barbuttontexta">
-            <b>READ ME!</b>
-            You're currently rocking Studio Bot Maker version 2.3.1
-            </div>
-            <div class="barbuttontexta">
-            Documentation & Hosting reccomendations on Github/RatWasHere/Studio-Bot-Maker/docs
-            </div>
-            </div>
-            </div>`;
-}
-function storeHostingServerID(elm) {
-  botData.serverID = elm.innerText;
-  fs.writeFileSync(
-    processPath + "\\AppData\\data.json",
-    JSON.stringify(botData, null, 2),
-  );
-}
-function storeHostingToken(elm) {
-  botData.serverToken = elm.innerText;
-  fs.writeFileSync(
-    processPath + "\\AppData\\data.json",
-    JSON.stringify(botData, null, 2),
-  );
-}
-
-function showHosting() {
-  const axios = require("axios");
-
-  if (!botData.serverToken) {
-    showPhantomUnset();
-  }
-  const apiKey = botData.serverToken;
-
-  const baseURL = "https://game.phantom-hosting.net/api/client";
-
-  try {
-    const axiosInstance = axios.create({
-      baseURL,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-    });
-    const getAccountInfo = async () => {
-      const response = await axiosInstance.get("/account");
-      return response.data;
-    };
-    getAccountInfo()
-      .then((data) => {
-        let view = document.getElementById("actElmsig");
-        view.innerHTML = `
-        <div class="flexbox" style="margin-left: auto; margin-right: 12px;">
-        <div class="text" style="text-align: center; margin-left: 26vw;">Phantom Hosting</div>
-
-        <div class="barbuttond center borderrightz" onclick="switchToHome()" style="margin-left: auto; height: 3vh; width: 30px;">
-        <div class="image backArrow">
-        
-        </div>
-        </div>
-        <div class="barbuttond center borderleftz" onclick="switchToHome()" style="width: 70px; height: 3vh; margin-right: 26vw; margin-left: 0.3vw;">
-        <div class="barbuttontexta">
-        Home
-        </div>
-        </div>
-        </div>
-        <br>
-        <div style="background-color: #00000060; height: 50vh; width: 50%; padding: 12px; border-radius: 12px; margin: auto; align-items: center; align-content: center; justify-content: center;">
-        <div class="barbuttontexta">Phantom API Token</div>
-        <div class="input" contenteditable="true" onkeyup="storeHostingToken(this)">${botData.serverToken}</div>
-        <div class="barbuttontexta">Phantom Server ID</div>
-        <div class="input" contenteditable="true" onkeyup="storeHostingServerID(this)">${botData.serverID}</div>
-        <div class="sepbars"> <br>
-        <div class="barbuttontexta">Your Phantom Credentials</div>
-        <div class="smalltext">Email: ${data.attributes.email} | Username: ${data.attributes.username} | Admin: ${data.attributes.admin}</div>
-        <br><br>
-        <div class="flexbox" style="align-items: center; justify-content: center">
-        <div style="width: 30%; margin: auto;">
-        <div style="width: 100%;" class="barbuttond" onclick="uploadDataToPhantom()" style="margin: auto; height: 4vh;">
-        <div class="barbuttontexta">Upload Data</div>
-        </div>
-        </div>
-        <div style="width: 30%; margin: auto;">
-        <div class="smalltext" style="text-align: left; "><b>Uploading Your Data Will:</b>
-        <br><br>
-        - Modify your Git Repo Address<br>
-        - Enable Auto Updating<br>
-        - Update your data.json file
-        </div>
-        </div>
-        </div>
-        <div class="smalltext" style="margin-top: 13vh;">
-        <div onclick="require('electron').shell.openExternal('https://phantom-hosting.net');" style="text-decoration: dashed;">https://phantom-hosting.net</div>
-        This feature requires a Discord Bot Hosting Plan
-        </div>
-        </div>
-        `;
-      })
-      .catch(err, () => {
-        if (!botData.serverToken) {
-          showPhantomUnset();
-        }
-      });
-  } catch (err) {
-    console.log("err");
-    showPhantomUnset();
-  }
-}
-function showPhantomUnset() {
-  let view = document.getElementById("actElmsig");
-  view.innerHTML = `
-            <div class="flexbox" style="margin-left: auto; margin-right: 12px;">
-            <div class="text" style="text-align: center; margin-left: 26vw;">Phantom Hosting</div>
-    
-            <div class="barbuttond center borderrightz" onclick="switchToHome()" style="margin-left: auto; height: 3vh; width: 30px;">
-            <div class="image backArrow">
-            
-            </div>
-            </div>
-            <div class="barbuttond center borderleftz" onclick="switchToHome()" style="width: 70px; height: 3vh; margin-right: 26vw; margin-left: 0.3vw;">
-            <div class="barbuttontexta">
-            Home
-            </div>
-            </div>
-            </div>
-            <br>
-            <div style="background-color: #00000060; height: 50vh; width: 50%; padding: 12px; border-radius: 12px; margin: auto; align-items: center; align-content: center; justify-content: center;">
-            <div class="barbuttontexta">Phantom API Token</div>
-            <div class="input" contenteditable="true" onkeyup="storeHostingToken(this)">None</div>
-            <div class="barbuttontexta">Phantom Server ID</div>
-            <div class="input" contenteditable="true" onkeyup="storeHostingServerID(this)">Unset</div>
-            <div class="sepbars"> <br>
-            <div class="barbuttontexta">Your Phantom Credentials</div>
-            <div class="smalltext">Email: Unset | Username: Unset | Admin: Unknown</div>
-            <br><br>
-            <div class="flexbox" style="align-items: center; justify-content: center">
-            <div style="width: 30%; margin: auto;">
-            <div style="width: 100%;" class="barbuttond" onclick="uploadDataToPhantom()" style="margin: auto; height: 4vh;">
-            <div class="barbuttontexta">Upload Data</div>
-            </div>
-            </div>
-            <div style="width: 30%; margin: auto;">
-            <div class="smalltext" style="text-align: left; "><b>Uploading Your Data Will:</b>
-            <br><br>
-            - Modify your Git Repo Address<br>
-            - Enable Auto Updating<br>
-            - Update your data.json file
-            </div>
-            </div>
-            </div>
-            <div class="smalltext" style="margin-top: 13vh;">
-            <div onclick="require('electron').shell.openExternal('https://phantom-hosting.net');" style="text-decoration: dashed;">https://phantom-hosting.net</div>
-            This feature requires a Discord Bot Hosting Plan
-            </div>
-            </div>
-            `;
-}
-function uploadDataToPhantom() {
-  if (botData.serverToken == undefined || botData.serverID == undefined) return;
-  let url1 = `https://game.phantom-hosting.net/api/client/servers/${botData.serverID}/files/write?file=%2FAppData/data.json`;
-
-  const headers1 = {
-    Accept: "application/text",
-    "Content-Type": "application/text",
-    Authorization: `Bearer ${botData.serverToken}`, // Users FULL API key
-  };
-
-  console.log(JSON.stringify(botData));
-  axios.post(url1, botData, { headers1 });
-
-  const filePath = path.join(processPath, "AppData", "bot.js");
-  const fileContent = fs.readFileSync(filePath, "utf8");
-
-  const url = `https://game.phantom-hosting.net/api/client/servers/${botData.serverID}/files/write?file=%2Fbot.js`;
-  const headers = {
-    Accept: "application/text",
-    "Content-Type": "application/text",
-    Authorization: `Bearer ${botData.serverToken}`, // Users FULL API key
-  };
-
-  axios
-    .post(url, fileContent, { headers })
-    .then((response) => {
-      console.log(response.data);
-    })
-    .catch((error) => {
-      console.error(error);
-    });
-
-  axios({
-    method: "put",
-    url: `https://game.phantom-hosting.net/api/client/servers/${botData.serverID}/startup/variable`,
-    headers: {
-      Accept: "*/*",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${botData.serverToken}`, // Users FULL API key
-    },
-    data: {
-      key: "BOT_JS_FILE",
-      value: "bot.js",
-    },
-  })
-    .then((response) => {
-      console.log(response.data);
-    })
-    .catch((error) => {
-      console.log(error);
-    });
-
-  axios({
-    method: "put",
-    url: `https://game.phantom-hosting.net/api/client/servers/${botData.serverID}/startup/variable`,
-    headers: {
-      Accept: "*/*",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${botData.serverToken}`, // Users FULL API key
-    },
-    data: {
-      key: "BRANCH",
-      value: "main",
-    },
-  })
-    .then((response) => {
-      console.log(response.data);
-    })
-    .catch((error) => {
-      console.log(error);
-    });
-  axios({
-    method: "put",
-    url: `https://game.phantom-hosting.net/api/client/servers/${botData.serverID}/startup/variable`,
-    headers: {
-      Accept: "*/*",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${botData.serverToken}`, // Users FULL API key
-    },
-    data: {
-      key: "BRANCH",
-      value: "main",
-    },
-  })
-    .then((response) => {
-      console.log(response.data);
-    })
-    .catch((error) => {
-      console.log(error);
-    });
-
-  axios({
-    method: "put",
-    url: `https://game.phantom-hosting.net/api/client/servers/${botData.serverID}/startup/variable`,
-    headers: {
-      Accept: "*/*",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${botData.serverToken}`, // Users FULL API key
-    },
-    data: {
-      key: "GIT_ADDRESS",
-      value: "https://github.com/RatWasHere/Studio-Bot",
-    },
-  })
-    .then((response) => {
-      console.log(response.data);
-    })
-    .catch((error) => {
-      console.log(error);
-    });
-  axios({
-    method: "put",
-    url: `https://game.phantom-hosting.net/api/client/servers/${botData.serverID}/startup/variable`,
-    headers: {
-      Accept: "*/*",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${botData.serverToken}`, // Users FULL API key
-    },
-    data: {
-      key: "AUTO_UPDATE",
-      value: "1",
-    },
-  })
-    .then((response) => {
-      console.log(response.data);
-    })
-    .catch((error) => {
-      console.log(error);
-    });
-
-  axios({
-    method: "put",
-    url: `https://game.phantom-hosting.net/api/client/servers/${botData.serverID}/startup/variable`,
-    headers: {
-      Accept: "*/*",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${botData.serverToken}`, // Users FULL API key
-    },
-    data: {
-      key: "USER_UPLOAD",
-      value: "1",
-    },
-  })
-    .then((response) => {
-      console.log(response.data);
-    })
-    .catch((error) => {
-      console.log(error);
-    });
-}
-function viewJSON() {
-  let view = document.getElementById("actElmsig");
-  view.innerHTML = `
-            <div style="background-color: #00000060; overflow: auto; height: 50vh; width: 95%; padding: 9px; margin-left: auto; margin-right: auto; border-radius: 12px; margin-top: 2vh;">
-            <div class="barbuttontexta" contenteditable="true">
-            ${fs.readFileSync(processPath + "\\AppData\\data.json", "utf8")}
-            </div>
-            </div>
-            
-            `;
-}
-function elementContentChecker(element, values) {
-  let maxLength = values.maxLength;
-
-  if (values.isCommandName == true) {
-    let type = "event";
-    if (botData.commands[lastObj].type == "action") {
-      console.log(botData.commands[lastObj]);
-      switch (botData.commands[lastObj].trigger) {
-        case "slashCommand":
-          type = "slsh";
-          break;
-        case "textCommand":
-          type = "txt";
-          break;
-        case "messageContent":
-          type = "msg";
-      }
-    }
-
-    if (type == "event") {
-      let text = element.innerText;
-
-      if (text.split("").length > maxLength) {
-        let finalText = "";
-
-        let count = 0;
-
-        for (let character in text) {
-          count++;
-          if (count < maxLength) {
-            finalText += text[character];
-          }
-        }
-        element.innerHTML = finalText;
-        element.blur();
-      }
-    }
-
-    if (type == "txt") {
-      let text = element.innerText;
-
-      if (text.split("").length > maxLength) {
-        let finalText = "";
-
-        let count = 0;
-
-        for (let character in text) {
-          count++;
-          if (count < maxLength) {
-            finalText += text[character];
-          }
-        }
-        element.innerHTML = finalText;
-        element.blur();
-      }
-    }
-
-    if (type == "slsh") {
-      let text = element.innerText;
-
-      if (text.split("").length > maxLength) {
-        let finalText = "";
-
-        let count = 0;
-
-        for (let character in text) {
-          count++;
-          if (count < maxLength) {
-            finalText += text[character];
-          }
-        }
-        element.innerHTML = finalText;
-        element.blur();
-      }
-    }
-  } else {
-    if (values.noSpaces == true && values.fromBlur == true) {
-      if (element.innerText.split("").includes(" ")) {
-        element.innerHTML = element.innerText.replaceAll(" ", "");
-      }
-    }
-
-    if (values.noCaps == true && values.fromBlur == true) {
-      element.innerHTML = element.innerText.toLowerCase();
-    }
-
-    let text = element.innerText;
-
-    if (text.split("").length > maxLength) {
-      let finalText = "";
-
-      let count = 0;
-
-      for (let character in text) {
-        count++;
-        if (count < maxLength) {
-          finalText += text[character];
-        }
-      }
-      element.innerHTML = finalText;
-      element.blur();
-    }
-  }
 }
 
 function setProjectName(welm) {
@@ -1795,11 +925,12 @@ function saveSelection() {
 }
 
 const { spawn } = require("child_process");
+const { profileEnd } = require("console");
 
 function openEvent() {
   try {
     ipcRenderer.send("editEvent", {
-      name: require("./AppData/Events/" + botData.commands[lastObj].eventFile)
+      name: require(processPath + "/AppData/Events/" + botData.commands[lastObj].eventFile)
         .name,
       event: botData.commands[lastObj].eventFile,
       data: botData.commands[lastObj].eventData,
@@ -1885,4 +1016,7 @@ function wast() {
     processPath + "\\AppData\\data.json",
     JSON.stringify(botData, null, 2),
   );
+  try {
+    savePrj()
+  } catch (err) {}
 }

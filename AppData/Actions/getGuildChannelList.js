@@ -22,11 +22,10 @@ module.exports = {
     previewName: "Store As",
   },
 
-  async run(values, message, uID, fs, client, runner, bridge) {
+  async run(values, interaction, client, bridge) {
     let varTools = require(`../Toolkit/variableTools.js`);
 
     let output = [];
-
     for (let [id, channel] of bridge.guild.channels) {
       if (channel.parent) {
         if (values.get == "IDs") {

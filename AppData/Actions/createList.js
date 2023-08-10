@@ -14,11 +14,11 @@ module.exports = {
     previewName: "Name",
   },
 
-  async run(values, message, uID, fs, client, runner, bridge) {
+  async run(values, message, client, bridge) {
     let transferVariables = require(`../Toolkit/variableTools.js`).transf;
 
     const transf = (value) => {
-      transferVariables(value, bridge.variables);
+      return transferVariables(value, bridge.variables);
     };
 
     bridge.variables[transf(values.listName)] = [];

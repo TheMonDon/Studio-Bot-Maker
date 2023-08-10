@@ -17,6 +17,9 @@
     "
     id="everything_container"
   >
+  <div onclick="closeWindow()" class="hoverablez flexbox dropShadow" style="height: 5vh; width: 5vh; margin-bottom: -5vh; transform: translateY(50%) translateX(-50%); margin-left: calc(100vw - 5vh); backdrop-filter: blur(12px); border-radius: 2vh; position: relative; z-index: 40000;">
+    <div class="image add noanims" style="margin: auto; width: 80%; height: 80%; transform: rotate(45deg)"></div>
+  </div>
     <div
       id="editorContent"
       style="
@@ -106,8 +109,8 @@
         <div class="barbuttontexta" id="action-name"></div>
         <div
           class="barbuttonshift flexbox"
-          style="margin-right: 1vw; width: 13vw; margin-left: auto"
-          onclick="closeWindow()"
+          style="margin-right: 1vw; width: 17vw; margin-left: auto"
+          onclick="save(); closeWindow()"
         >
           <div
             class="image checkmark"
@@ -118,9 +121,9 @@
             "
           ></div>
           <div style="margin: auto">
-            <div class="barbuttontexta">Close</div>
+            <div class="barbuttontexta">Save & Exit</div>
             <div class="smalltext" style="opacity: 50%; font-size: 8px">
-              CTRL+TAB
+              CTRL+Q
             </div>
           </div>
         </div>
@@ -288,7 +291,6 @@
       document.getElementById("editorContent").innerHTML =
         `<br>` + getUIelements(actionUI, action);
     });
-
     function save() {
       for (let i in actionUI) {
         let element = actionUI[i];
@@ -321,8 +323,11 @@
                 if (i.split(" ").includes("custom")) {
                   action.data[element] = document.getElementById(element).value;
                 } else {
-                  action.data[element] =
-                    document.getElementById(element).innerText;
+                  if (i.startsWith('largeInput')) {
+                      action.data[element] = document.getElementById(element).value;
+                  } else {
+                      action.data[element] = document.getElementById(element).innerText;
+                  }
                 }
               } catch (err) {}
             }

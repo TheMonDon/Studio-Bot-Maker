@@ -25,7 +25,6 @@ module.exports = {
         "Channel Name",
         "Channel ID",
         "Channel Guild",
-        "Channel Description",
         "Channel Topic",
         "Channel URL",
         "Channel Server",
@@ -45,7 +44,7 @@ module.exports = {
     previewName: "Get",
     preview: "get",
   },
-  async run(values, message, uID, fs, client, runner, bridge) {
+  async run(values, message, client, bridge) {
     let varTools = require(`../Toolkit/variableTools.js`);
     let channel;
     if (values.channelVia == "Variable*") {
@@ -62,9 +61,6 @@ module.exports = {
     switch (values.get) {
       case "Channel Name":
         output = channel.name;
-        break;
-      case "Channel Topic":
-        output = channel.topic;
         break;
       case "Channel URL":
         if (channel.guild) {

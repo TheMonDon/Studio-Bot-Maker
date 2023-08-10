@@ -1,74 +1,25 @@
 <html>
   <link rel="stylesheet" href="main.css" />
   <meta charset="utf8" />
-  <div class="sidebar" id="sidebar">
-    <br />
-    <div class="sidebarbutton flexbox outlined" onclick="modcolor()">
-      <div
-        class="image colors noanims;"
-        style="width: 2vw; height: 2vw; margin-left: 1vw"
-      ></div>
-      <div class="sidebartext">Colors</div>
+  <div class="titlebar flexbox textToLeft"><div id="titlebar" style="margin-left: 1vw; margin-top: auto; margin-bottom: auto;">Studio Bot Maker</div>
+  <div style="height: 40%; margin: auto; margin-right: 1vw; margin-left: 1vw; width: 3px; background-color: #FFFFFF40; border-radius: 12px;"></div>
+
+  <div class="hoverablez option" onclick="initSetup()" style="margin-left: 0px">Settings</div>
+  <div class="hoverablez option nmt" popovertarget="project">Project
+    <div class="optionPopup dimension">
+      <div class="hoverablez"  onclick="ipcRenderer.send('export', botData)">Export</div>
+      <div class="hoverablez"  onclick="sltPrj()">Import</div>
     </div>
-    <div class="sepbars"></div>
-    <div class="sidebarbutton flexbox" onclick="savePrj()">
-      <div
-        class="image save noanims;"
-        style="width: 2vw; height: 2vw; margin-left: 1vw"
-      ></div>
-      <div class="sidebartext">Save</div>
-    </div>
-    <div class="sepbars"></div>
-    <div class="sidebarbutton flexbox outlined" onclick="exportProject()">
-      <div
-        class="image export noanims;"
-        style="width: 2vw; height: 2vw; margin-left: 1vw"
-      ></div>
-      <div class="sidebartext">Export</div>
-    </div>
-    <div class="sidebarbutton flexbox outlined" onclick="sltPrj()">
-      <div
-        class="image import noanims;"
-        style="width: 2vw; height: 2vw; margin-left: 1vw"
-      ></div>
-      <div class="sidebartext">Import</div>
-    </div>
-    <div class="sepbars"></div>
-    <div class="sidebarbutton flexbox" onclick="ipcRenderer.send('runBot')">
-      <div
-        class="image startbot noanims;"
-        style="width: 2vw; height: 2vw; margin-left: 1vw"
-      ></div>
-      <div class="sidebartext">Start Bot</div>
-    </div>
-    <div class="sepbars"></div>
-    <div class="sidebarbutton flexbox outlined" onclick="settoken()">
-      <div
-        class="image botsetup noanims;"
-        style="width: 2vw; height: 2vw; margin-left: 1vw"
-      ></div>
-      <div class="sidebartext">Bot Setup</div>
-    </div>
-    <div class="sepbars"></div>
-    <div class="sidebarbutton flexbox outlined" onclick="initSetup()">
-      <div
-        class="image botsetup noanims;"
-        style="width: 2vw; height: 2vw; margin-left: 1vw"
-      ></div>
-      <div class="sidebartext">Settings</div>
-    </div>
-    <div class="sepbars"></div>
-    <div
-      class="sidebarbutton flexbox outlined"
-      onclick="require('electron').shell.openExternal('https:/\/discord.gg/wjXz7jGgCw')"
-    >
-      <div
-        class="image editAction noanims;"
-        style="width: 2vw; height: 2vw; margin-left: 1vw"
-      ></div>
-      <div class="sidebartext">Support Server</div>
-    </div>
+    
   </div>
+  <div class="hoverablez option" onclick="ipcRenderer.send('runBot')">Start Bot</div>
+  
+  <div class="hoverablez option flexbox" onclick="ipcRenderer.send('minimize')" style="height: 80%; width: 40px; padding: 0px; margin-top: auto; margin-bottom: auto; margin-left: auto; border-radius: 0px; margin-right: 0px; border-top-left-radius: 4px; border-bottom-left-radius: 4px;"><div style="width: 30%; border: 5px #FFFFFF50 solid; margin: auto; border-radius: 3px;"></div></div>
+  <div class="hoverablez option flexbox" onclick="ipcRenderer.send('maximize')" style="height: 80%; width: 40px; padding: 0px; margin-top: auto; margin-bottom: auto; border-radius: 0px; margin-left: 0px; margin-right: 0px;"><div style="height: 30%; aspect-ratio: 1/1; border: 5px #FFFFFF50 solid; margin: auto; border-radius: 3px;"></div></div>
+  <div class="hoverablez option flexbox" onclick="ipcRenderer.send('close')" style="height: 80%; width: 40px; padding: 0px; margin-top: auto; margin-bottom: auto; border-radius: 0px; margin-left: 0px; margin-right: 4px;  border-top-right-radius: 4px; border-bottom-right-radius: 4px;"><div class="image add" style="margin: auto; rotate: 45deg;"></div></div>
+  
+  </div>
+  
   <div
     style="
       justify-content: center;
@@ -92,7 +43,7 @@
           <div
             class="actbartoolbar flexbox actbarbottom"
             style="
-              margin-bottom: 2vh;
+              margin-bottom: 1vh;
               align-items: center;
               justify-content: center;
             "
@@ -117,14 +68,14 @@
           <div
             class="actBarHalf actbartop"
             id="actionbar"
-            style="width: 96.6vw !important"
+            style="width: 98.6vw !important"
           ></div>
           <div
             class="actbartoolbar flexbox actbarbottom"
             style="
               align-items: center;
               justify-content: center;
-              width: calc(96.6vw - 8px) !important;
+              width: calc(98.6vw - 4px) !important;
             "
           >
             <div style="margin-right: auto; margin-left: 1vw">
@@ -231,7 +182,7 @@
             >
               Using 0 Actions
             </div>
-            <div class="flexbox" style="height: 33px; margin-bottom: 2vh">
+            <div class="flexbox" id="groupActionsContainer" style="height: 33px; transition: all 0.2s ease;">
               <div
                 class="baction noanims hoverable optionleft flexbox"
                 style="align-items: center; justify-content: center"
@@ -498,9 +449,9 @@
     setTimeout(() => {
       toggleColorsVisibility();
     }, 350);
-    document.body.style.padding = "1vw";
-    document.body.style.paddingTop = "1vh";
-    document.body.style.paddingBottom = "1.8vh";
+    document.body.style.padding = "0px";
+    document.body.style.paddingTop = "0px";
+    document.body.style.paddingBottom = "1vh";
 
     const interactionTools = require("./AppData/Toolkit/interactionTools.js");
     const fese = require("fs");
